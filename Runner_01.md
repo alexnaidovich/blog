@@ -70,12 +70,10 @@ root
 
 ```javascript
 // components
-const [
-  {
-    rewriteSettings,  // у меня уже есть одна функция в хелперах, о ней позже
-  },
-  intro
-] = [ 'helpers', 'intro' ].map(component => require(path.join('src', component)));
+const [ helpers, intro ] = [ 'helpers', 'intro' ].map(component => require(path.join('src', component)));
+
+// у меня уже есть одна функция в хелперах, о ней позже
+const { rewriteSettings } = helpers;
 
 // settings
 const SETTINGS = require('./settings.json');
