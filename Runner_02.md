@@ -160,4 +160,67 @@ const [
 ].map(component => require(`./src/${component}`));
 ```
 
+-> `src/config-dependencies.js`
+
+```javascript
+const inquirer = require('inquirer');
+
+// Plan: 
+// 1. Define author by default
+//   1.1. Select from list of default authors or 'input manually'
+//   1.2. If 'input manually' - offer to store in defaults.
+// 2. Give name and description to the project
+// 3. Define devDeps
+//   3.1. Define if they are cahced or not 
+//     3.1.1. If devDeps are cahced, choose directory to install from (with 'input manually' value and offer to store)
+//     3.1.2. If not, go to 3.2
+//   3.2. Select devDeps kit to install (with 'input manually' value)
+//     3.2.1. If inputted manually, offer to save input as a devDeps kit
+// 4. Define deps
+//   4.1. Select deps kit to install (with 'input manually' value)
+//     4.1.1. If inputted manually, offer to save input as a deps kit
+// 5. Save 'package.json'
+// 6. Perform 'npm install'
+```
+
+План готов. В соответствии с ним, из файла `settings.json` для проверок нам понадобятся следующие параметры:
+  * `defaultAuthors` - автор проектов по умолчанию. Изначально - пустой массив;
+  * `examplePackageJson` - объект базового костяка файла `package.json`, содержащий поля `"name"`, `"version": "1.0.0"`, `"description"`, `"author"`, `"scripts": {}`. Зависимости будут добавлены позже;
+  * `isDevDepsCached` - булевое значение, от которого зависит дальнейший ход выполнения скрипта;
+  * `devDepsCahcePaths` - если `devDependencies` закэшированы, отдается массив путей и пункт "ввести вручную" с последующим сохранением в этот массив;
+  * `devDepsKits` - на случай, если `devDependencies` не закэшированы, предлагается выбрать набор дев-зависимостей либо ввести их вручную и сохранить в массиве наборов;
+  * `depsKits` - то же самое, что и `devDepsKits`, только для обычных (прод) зависимостей.
+  
+Соответственно, в `settings.json` должны быть эти поля. Примерно так сейчас выглядит:
+
+> `settings.json`
+```json
+{
+  "defaultAuthors": [],
+  "examplePackageJson": {
+    "name": "",
+    "version": "1.0.0",
+    "description": "",
+    "author": "",
+    "scripts": {
+      "dev": "cross-env NODE_ENV=dev webpack-dev-server --progress --mode development --config webpack.config.dev.js",
+      "build": "webpack -p --progress --mode production --config webpack.config.build.js"
+    }
+  },
+  "isDevDepsCached": true,
+  "devDepsCachePaths": [
+    "c:\\_npmg\\",
+  ],
+  "devDepsKits": [],
+  "depsKits": [
+    [
+      "siema",
+      "materialize-css@latest"
+    ]
+  ]
+}
+```
+
+> Данный пример уже немного адаптирован под меня. В частности: я использую `webpack`, поэтому поле `examplePackageJson.scripts` уже содержит значения для запуска команд `npm run dev` и `npm run build`; поля `examplePackageJson.license` и `examplePackageJson.repository` у меня отсутствуют за ненадобностью в рамках данной работы; также у меня мои дев-зависимости уже предустановлены в директории `c:\_npmg\`, поэтому в каждый текущий проект будут просто переноситься ссылки на эту директорию (я так сделал для того, чтобы поберечь SSD), а также имеется парочка предопределенных прод-зависимостей в лице слайдера `siema` и css-фреймворка `materialize-css`.
+
 _будет дополнено._
