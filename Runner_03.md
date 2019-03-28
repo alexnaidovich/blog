@@ -67,5 +67,119 @@ module.exports.rewriteSettings = (json, typeOfConfig, keyToReplace, valueToRepla
 }
 ```
 
+А обратить внимание здесь стоит на то, что первым параметром в `fs.writeFile()` мы передаем путь, который включает в себя переменную `dir_config`, определенную ранее. Теперь файл сохранится там, где нужно.
+
 ## А теперь к `lib/config-dependencies.js`
 
+Первое. **Импортируем свежий, специально для этого компонента созданный файл настроек**. Про `settings.json` забываем.
+Второе. Импортируем то, чем будем пользоваться (зависимость `inquirer` и наш хелпер `rewriteSettings`).
+
+> `lib/config-dependencies.js`
+```javascript
+const inquirer = require('inquirer'); 
+const CONFIG = require('../config/deps.config.json');
+const { rewriteSettings } = require('./helpers');
+const package_json = {}; // <- про это сейчас расскажу.
+```
+
+Основная цель данного компонента - сформировать `package.json` и на его основе выполнить `npm install`. Поэтому (отсылка к последней строчке предыдущего кода) заведем переменную `package_json`, хранящую (пока что) пустой объект.
+
+Вспомним наш план:
+```javascript
+async function main() {
+  // Plan: 
+  // 1. Define author by default
+  //   1.1. Select from list of default authors or 'input manually'
+  //   1.2. If 'input manually' - offer to store in defaults.
+  // 2. Give name and description to the project
+  // 3. Define devDeps
+  //   3.1. Define if they are cahced or not 
+  //     3.1.1. If devDeps are cahced, choose directory to install from (with 'input manually' value and offer to store)
+  //     3.1.2. If not, go to 3.2
+  //   3.2. Select devDeps kit to install (with 'input manually' value)
+  //     3.2.1. If inputted manually, offer to save input as a devDeps kit
+  // 4. Define deps
+  //   4.1. Select deps kit to install (with 'input manually' value)
+  //     4.1.1. If inputted manually, offer to save input as a deps kit
+  // 5. Save 'package.json'
+  // 6. Perform 'npm install'
+}
+```
+
+Первым делом, определим автроа. Поскольку изначально наш массив авторов по умолчанию пуст, интерфейс должен предложить ввести имя вручную и сохранить для выбора в следующий раз. Это из разряда тех вещей, которые после установки заполняются только однажды. В процессе будем использовать библиотеку `inquirer`, которая будет "опрашивать" пользователя в командной строке.
+
+> `lib/config-dependencies.js`
+```javascript
+async function defineAuthor() {
+
+  // вопрос #1: Выбрать автора из списка или ввести вручную
+  const questions_PICK = [
+    {
+      type: "list",
+      message: "Pick an author",
+      name: "_author",
+      choices: CONFIG.defaultAuthors.concat("input manually") // Вариант "ввести вручную" будет в любом случае, даже если массив авторов пуст
+    }
+  ]
+  
+  // вопрос #2 - ввод имени вручную
+  const questions_INPUT = [
+    {
+      type: "input",
+      message: "Input your name",
+      name: "author"
+    }
+    , // вопрос #3 - предлагаем сохранить свое имя в настройках по умолчанию
+    {
+      type: "confirm",
+      message: "Do you want your name to be saved?",
+      name: "storeName",
+      default: true
+    }
+  ]
+
+  // функции, задающие вопросы и возвращающие промисы с ответами
+  const PICK = () => inquirer.prompt(questions_PICK);
+  const INPUT = () => inquirer.prompt(questions_INPUT);
+
+  //   1.1. Select from list of default authors or 'input manually'
+  const { _author } = await PICK();
+
+  //   1.2. If 'input manually' - offer to store in defaults.
+  // если "ввести вручную"
+  if (_author === "input manually") { 
+
+    const { author, storeName } = await INPUT();
+
+    if (storeName) {
+      CONFIG.defaultAuthors.push(author); // <- добавляем автроа в список
+      rewriteSettings(CONFIG, 'deps'); // <- переписываем конфиг
+    }
+    package_json['author'] = author; // <- создаем поле "author" в переменной package.json
+    return author;
+  }
+  package_json['author'] = _author; // <- создаем поле "author" в переменной package.json
+  return _author;
+}
+
+async function main() {
+  // Plan: 
+  // 1. Define author by default
+  let author = await defineAuthor();
+  console.log(`Author (from MAIN): ${author}`);
+  
+  // в качестве теста вернем автора в точку входа (index.js)
+  return author;
+  // ...
+}
+
+module.exports = main;
+```
+
+![Cold Run](https://raw.githubusercontent.com/alexnaidovich/blog/blog-images/Runner_03-01.JPG)
+
+Как видим из скриншота, интерфейс добавил в (изначально пустой) массив `defaultAuthors` мое имя. При следующем запуске интерфейс уже предложит мне его выбрать.
+
+![Pick an author](https://raw.githubusercontent.com/alexnaidovich/blog/blog-images/Runner_03-02.JPG)
+
+Первый пункт плана можно считать выполненным. Идем дальше.
