@@ -185,7 +185,7 @@ module.exports = main;
 ![Pick an author](https://raw.githubusercontent.com/alexnaidovich/blog/blog-images/Runner_03-02.JPG)
 
 Первый пункт плана можно считать выполненным. Идем дальше.
-> Главное - не забыть в README.md написать, чтобы пользовательне выбирал себе имя "input manually" :)
+> Главное - не забыть в README.md указать, чтобы пользователь не набирал себе имя "input manually" :)
 
 ### `"name"` и `"description"`
 
@@ -209,12 +209,12 @@ async function setNameAndDescription() {
 
   const INPUT = () => inquirer.prompt(questions);
   const { name, description } = await INPUT();
-  Object.assign(package_json, { name, description });
+  Object.assign(package_json, { name, description }); // <- добавляем поля "name" и "description" в объект package_json
 
   return [ name, description ];
 }
 
-async function main() {
+module.exports = async function main() {
   // Plan: 
   // 1. Define author by default
   let author = await defineAuthor();
@@ -229,3 +229,7 @@ async function main() {
 
 module.exports = main;
 ```
+
+Из главной функции в точку входа возвращаем все имеющиеся поля по отдельности, и объект `package_json`, пропущенный через `JSON.stringify()`. И как видно из скрина, всё приходит как надо.
+
+![Author, name and description](https://github.com/alexnaidovich/blog/blob/blog-images/Runner_03-03.JPG?raw=true)
