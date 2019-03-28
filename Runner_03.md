@@ -40,5 +40,32 @@ const [
 ].map(component => require(path.join(dir_lib, component)));
 ```
 
-> Прелесть глобальной общедоступной переменной `__dirname` заключается в том, что она всегда указывает на директорию **исходного** файла. А понадобится это нам для того, чтобы, к примеру, сохранять настройки в исходной папке CLI, а не в папке сайтика, который мы с помощью CLI генерируем.
+> Прелесть глобальной общедоступной переменной `__dirname` заключается в том, что она всегда указывает на директорию **файла, в котором она вызвана**. А понадобится это нам для того, чтобы, к примеру, сохранять настройки в исходной папке CLI, а не в папке сайтика, который мы с помощью CLI генерируем.
+
+Теперь при импорте наших компонент метод `require(path.join(dir_lib, component))` отрабатывает на отлично и не выбрасывает ошибок.
+
+### 3. `lib/helpers.js`, а точнее - `rewriteSettings()`
+
+Разобрать ошибку с путями было необходимо для решения проблемы этого метода - места сохранения файла настроек. В предыдущем исполнении данного метода файл `settings.json` сохранялся не в папке, где находится CLI, а в текущей рабочей директории (папке, откуда мы запустили runner), так как путь сохранения был указан относительный. Чтобы это решить, нам в данном компоненте понадобится библиотека `path`, а также сохраним путь к папке настроек в переменную.
+> [`lib/helpers.js`](https://github.com/alexnaidovich/runner/blob/master/lib/helpers.js#L4)
+```javascript
+const path = require('path');
+const dir_config = path.resolve(__dirname, '..', 'config');
+```
+
+Теперь к самому методу. Поскольку мы разделили наши настройки на отдельные файлы для каждого компонента, сохранятьфайлы придется теперь тоже раздельно. Согласно моему восприятию такого понятия, как naming convention, мои файлы настроек имеют вид **`${назначение_конфига}.config.json`**. И соответственно, функиця должна принимать это `назначение конфига` входным параметром. Назоыем его `typeOfConfig`, и с ним функция будет иметь следующий вид:
+> [`lib/helpers.js`](https://github.com/alexnaidovich/runner/blob/master/lib/helpers.js#L24)
+```javascript
+module.exports.rewriteSettings = (json, typeOfConfig, keyToReplace, valueToReplace) => {  
+  function replaceValue(_key, _currentValue) {
+    if (_key === keyToReplace) {
+      return valueToReplace;
+    }
+    return _currentValue;
+  }
+  fs.writeFile(`${dir_config}/${typeOfConfig}.config.json`, JSON.stringify(json, replaceValue, 2), handleErrorWithoutSuccessCallback);
+}
+```
+
+## А теперь к `lib/config-dependencies.js`
 
