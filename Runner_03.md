@@ -226,10 +226,28 @@ module.exports = async function main() {
   return [ author, name, description, JSON.stringify(package_json, null, 2) ];
   // ...
 }
-
-module.exports = main;
 ```
 
 Из главной функции в точку входа возвращаем все имеющиеся поля по отдельности, и объект `package_json`, пропущенный через `JSON.stringify()`. И как видно из скрина, всё приходит как надо.
 
 ![Author, name and description](https://github.com/alexnaidovich/blog/blob/blog-images/Runner_03-03.JPG?raw=true)
+
+### `"version"`, `"scripts"`
+
+Этого не было в плане, потому что я про это забыл. Из файла настроек в поле `"examplePackageJson"` нам также приходят поля с версией и скриптами для вебпака. Их мы просто скопируем в переменную `package_json`.
+
+> `lib/config-dependencies.js`
+```javascript
+module.exports = async function main() {
+  // ...
+
+  //   2.1. Copy fields "version" and "scripts"
+  let { version, scripts } = CONFIG.examplePackageJson;
+  Object.assign(package_json, { version, scripts });
+
+  // test
+  return [ author, name, description, JSON.stringify(package_json, null, 2) ];
+
+  // ...
+}
+```
