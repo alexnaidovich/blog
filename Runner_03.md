@@ -53,7 +53,7 @@ const path = require('path');
 const dir_config = path.resolve(__dirname, '..', 'config');
 ```
 
-Теперь к самому методу. Поскольку мы разделили наши настройки на отдельные файлы для каждого компонента, сохранятьфайлы придется теперь тоже раздельно. Согласно моему восприятию такого понятия, как naming convention, мои файлы настроек имеют вид **`${назначение_конфига}.config.json`**. И соответственно, функиця должна принимать это `назначение конфига` входным параметром. Назовем его `typeOfConfig`, и с ним функция будет иметь следующий вид:
+Теперь к самому методу. Поскольку мы разделили наши настройки на отдельные файлы для каждого компонента, сохранять файлы придется теперь тоже раздельно. Согласно моему восприятию такого понятия, как naming convention, мои файлы настроек имеют вид **`${назначение_конфига}.config.json`**. И соответственно, функиця должна принимать это `назначение конфига` входным параметром. Назовем его `typeOfConfig`, и с ним функция будет иметь следующий вид:
 > [`lib/helpers.js`](https://github.com/alexnaidovich/runner/blob/master/lib/helpers.js#L24)
 ```javascript
 module.exports.rewriteSettings = (json, typeOfConfig, keyToReplace, valueToReplace) => {  
@@ -157,10 +157,10 @@ async function defineAuthor() {
       CONFIG.defaultAuthors.push(author); // <- добавляем автроа в список
       rewriteSettings(CONFIG, 'deps'); // <- переписываем конфиг
     }
-    package_json['author'] = author; // <- создаем поле "author" в переменной package.json
+    package_json['author'] = author; // <- создаем поле "author" в переменной package_json
     return author;
   }
-  package_json['author'] = _author; // <- создаем поле "author" в переменной package.json
+  package_json['author'] = _author; // <- создаем поле "author" в переменной package_json
   return _author;
 }
 
@@ -185,3 +185,47 @@ module.exports = main;
 ![Pick an author](https://raw.githubusercontent.com/alexnaidovich/blog/blog-images/Runner_03-02.JPG)
 
 Первый пункт плана можно считать выполненным. Идем дальше.
+> Главное - не забыть в README.md написать, чтобы пользовательне выбирал себе имя "input manually" :)
+
+### `"name"` и `"description"`
+
+Эти данные будут вводиться каждый раз при генерации каждого нового проекта. Принцип действия такой же - здесь `inquirer` задаст 2 вопроса типа `input`. На что здесь стоит обратить внимание - это на поле `"validate"` в вопросе про название проекта. Это функция-валидатор, которая принимает на себя введенное значение и не пропускает его, если оно пустое или в нем есть какие-либо символы, кроме латинских букв, цифр или дефиса.
+> `lib/config-dependencies.js`
+```javascript
+async function setNameAndDescription() {
+  const questions = [
+    {
+      type: "input",
+      message: "Input the name of your project",
+      name: "name",
+      validate: value => value !== "" && !(/[^a-zA-Z0-9\-]/g.test(value))
+    },
+    {
+      type: "input",
+      message: "Input the description of your project",
+      name: "description"
+    }
+  ]
+
+  const INPUT = () => inquirer.prompt(questions);
+  const { name, description } = await INPUT();
+  Object.assign(package_json, { name, description });
+
+  return [ name, description ];
+}
+
+async function main() {
+  // Plan: 
+  // 1. Define author by default
+  let author = await defineAuthor();
+  
+  // 2. Give name and description to the project
+  let [ name, description ] = await setNameAndDescription();
+
+  // test
+  return [ author, name, description, JSON.stringify(package_json, null, 2) ];
+  // ...
+}
+
+module.exports = main;
+```
