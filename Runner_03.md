@@ -57,4 +57,77 @@ module.exports = {
 
 ## Подготовлены и импортированы необходимые хелперы.
 
+Файл с помощниками претерпел, пожалуй, самые серьезные изменения. В нем появились три важных для работы метода:
+
+  * `scanCachedDevDependencies()` - на случай, если определенный набор дев-зависимостей установленн где-нибудь на HDD/SSD (мой случай) - можно просто ссылаться на путь, где они установлены. Функция принимает на себя путь к установленным зависимостям, а возвращает промис с полем `devDependencies` для создаваемого `package.json`;
+  
+```javascript
+/**
+ * Gets path to pre-installed devDependencies and and returns 'devDependencies' object
+ * linked to those packages for new 'package.json' output.
+ * 
+ * @param {String} pathToDependencies Path to installed npm packages
+ * @returns {Promise<Object | String<Error>>} Resolved mapped devDeps or rejected error message 
+ */
+module.exports.scanCachedDevDependencies = pathToDependencies => {
+  //  превращаем входной параметр (строку с путем) в 100% абсолютный путь.
+  const _path = path.resolve(pathToDependencies);
+
+  //  создаем новый объект поля devDependencies, в котором прописываем ссылочные пути к зависимостям.
+  //  хелпер для основной части.
+  const mapDeps = devDeps => {
+    const returnObj = {};
+    Object.keys(devDeps).forEach(dep => {
+      returnObj[dep] = `file:${_path.replace('\\', '/')}/node_modules/${dep}`;
+    });
+    return returnObj;
+  }
+
+  //  основная часть. считывает директорию, указанную в пути. 
+  //  если там нет файла package.json, реджектится. при других ошибках тоже.
+  //  в обратном случае резловится в готовый объект devDependencies.
+  const getDeps = () => {
+    return new Promise((resolve, reject) => {
+      fs.readdir(_path, (err, files) => {   
+        if (err) {
+          reject(err);
+        } else if (!files.find(file => file === 'package.json')) {
+          reject(`No 'package.json' found at the folder ${_path}.`);
+        } else {
+          const { devDependencies } = require(path.join(_path, 'package.json'));
+          resolve(mapDeps(devDependencies));
+        }
+      });
+    });
+  }
+
+  //  возвращаем немедленный запуск основной части.
+  return getDeps();
+}
+```
+  
+  * `savePackageJson()` - эта функция сохраняет файл `package.json` в текущей рабочей директории. Принимает на себя объект-содержимое файла, а возвращает промис, который разрешается в `true` при успехе или в строку с ошибкой, если вдруг неуспех.
+  
+```javascript
+/**
+ * Stores 'package.json' file on disc
+ * 
+ * @param {Object} package_json 'package.json' content
+ * @returns {Promise<String>} Promise containing state of file saving
+ */
+module.exports.savePackageJson = package_json => {
+  //  получаем путь к текущей рабочей директории
+  const cwd = process.cwd();
+  
+  return new Promise((resolve, reject) => {
+    fs.writeFile(`${cwd}/package.json`, JSON.stringify(package_json, null, 2), error => {
+      if (error) {
+        reject(error);
+      }
+      resolve(`"package.json" saved.`);
+    });
+  });
+}
+```
+
 ## Выстроен костяк компонента.
