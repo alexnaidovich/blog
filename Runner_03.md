@@ -106,7 +106,7 @@ module.exports.scanCachedDevDependencies = pathToDependencies => {
 }
 ```
   
-  * `savePackageJson()` - эта функция сохраняет файл `package.json` в текущей рабочей директории. Принимает на себя объект-содержимое файла, а возвращает промис, который разрешается в `true` при успехе или в строку с ошибкой, если вдруг неуспех.
+  * `savePackageJson()` - эта функция сохраняет файл `package.json` в текущей рабочей директории. Принимает на себя объект-содержимое файла, а возвращает промис, который разрешается в сообщение о сохранении при успехе или в строку с ошибкой, если вдруг неуспех.
   
 ```javascript
 /**
@@ -126,6 +126,64 @@ module.exports.savePackageJson = package_json => {
       }
       resolve(`"package.json" saved.`);
     });
+  });
+}
+```
+
+  * `npmInstall()` - функция с говорящим названием. Первым аргументом идет булевое значение `isDevDeps` - если приходит `true`, функция будет знать, что выполнять команду надо с флагом `--save-dev`, в обратном случае - `--save`. Вторым аргументом принимается массив зависимостей. Если он пустой и в сохраненном (уже к этому времени) `package.json` ничего в полях `dependencies`/`devDependencies` не прописано, установка происходить не должна. Здесь внутри функции мы собираемся выполнить `bash`-команду, и для этого нам пригодится метод `exec()`, который мы импортируем из модуля `child_process`, входящего в состав базовой комплектации Node.js. Этот метод создает дополнительный поток для исполнения bash/shell команд, поскольку основной поток занят выполнением нашей CLI. Также, поскольку все знают, что сам процесс выполнения `npm install` может быть очень долгим, понадобится какая-то индикация процесса, чтобы не возникло ощущение, что "компьютер завис". Для этой цели я выбрал спиннер от библиотеки `ora` (ещё одна внешняя зависимость в проект). По сложившейся традиции, для работы в среде `async/await`, возвращаем промис.
+  
+```javascript
+// спиннер - индикатор процесса
+const ora = require('ora');
+// метод exec() стандартного модуля child_process
+const { exec } = require('child_process')
+
+/**
+* Performs 'npm install'.
+* Returns resolved promise on success or rejected promise on failure.
+* 
+* @param {Boolean} isDevDeps defines if the deps are dev (true) or prod (false).
+* @param {Array} deps Array of packages
+* @returns {Promise<Boolean> | Promise<String>} 
+*/
+module.exports.npmInstall = (isDevDeps, deps = []) => {
+  //  соединяем массив зависимостей в строку, разделенную пробелом
+  let _deps = deps.length ? deps.join(' ') : '';
+  //  определяем, будем ли мы устанавливать дев- или прод-зависимости
+  let _savedev = isDevDeps ? '--save-dev' : '--save';
+  
+  return new Promise((resolve, reject) => {
+    //  запускаем спиннер
+    const spinner = ora('Installing dependencies via npm install. It may take a while...').start();
+    
+    //  запускаем параллельный поток shell-оболочки, в котором исполняются команды
+    const npminstall = exec(`npm install ${_savedev} ${_deps}`, (error, stdout, stderr) => {
+      //  если ошибка на запуске - останавливаем спиннер и реджектимся
+      if (error) {
+        spinner.stop();
+        console.log(error);
+        reject(error);
+      }
+    });
+    
+    //  подписываемся на событие 'message' параллельного потока для трансляции его сообщений в консоль основного потока
+    //  должен признать, это не сработало, хотя пытался добиться разными способами.
+    npminstall.on('message', message => process.stdout.write(message));
+    
+    //  подписываемся на событие выхода из параллельного потока при завершении в нём команды 'npm install'
+    npminstall.on('exit', (code, signal) => {
+      //  если в процессе что-то пошло не так (код выхода из потока - не ноль)
+      if (code !== 0) {
+        //  останавливаем спиннер и реджектимся
+        spinner.stop();
+        reject(`Exit child process with non-zero code: ${code};\n${signal}`);
+      } else {
+        //  в случае успеха - показываем сообщение об успезе и резолвимся. и тоже останавливаем спиннер :)
+        console.log(chalk.yellow(`\nnpm install finished with code ${code} and status ${signal}`));
+        spinner.stop();
+        resolve(true);
+      }
+    })
   });
 }
 ```
