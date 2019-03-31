@@ -270,7 +270,7 @@ async function defineAuthor() {
   
   //  поскольку есть вероятность ответа "ввести вручную",
   //  возвращаем немедленное выполнение хелпера ifInputManually()
-  return ifInputManually(
+  return await ifInputManually(
     _author,
     author_input,
     'defaultAuthors',
