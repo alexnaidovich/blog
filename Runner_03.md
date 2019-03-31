@@ -370,7 +370,11 @@ module.exports = async function main() {
       //  и там же выполняем npm install
       await npmInstall(true);
     } else {
-      //   3.2. В противном случае - выбираем/вводим дев-зависимости
+      //  3.2. В противном случае - 
+      //  сохраняем файл package.json в текущей рабочей директории
+      await savePackageJson(package_json);
+      
+      //   выбираем/вводим дев-зависимости
       let _devDepsKit = await chooseDevDepsKit();
       let devDepsKit = _devDepsKit.split(' ');
 
