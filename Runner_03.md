@@ -14,7 +14,46 @@
 
 ## Общий конфиг `settings.json` разбит на отдельные файлы для каждого компонента.
 
+`settings.json` больше в рабочем проекте не существует. Физически он остался в качестве черновика. Все файлы настроек будут храниться в папке `config`, и в этой заметке мы уделим внимание файлу `deps.config.json`. [Здесь можно взглянуть на его содержимое](https://github.com/alexnaidovich/runner/blob/master/config/deps.config.json), и все его поля нам пригодятся в работе.
+
 ## Составлен список всех вопросов компонента, и этот список вынесен отдельный файл.
+
+В данном компоненте (как, впрочем, и во всех остальных), будет тесно использоваться зависимость `inquirer`. Это удобный интерфейс для опросов в командной строке. Проблема с ним состоит в том, что сами вопросы для `inquirer`'a - объекты в массивах. И выглядят они массивно. Когда я их описывал в основном файле компонента, файл (в котором преимущественно должна быть логика) сильно раздулся. Поэтому я всем скопом вынес их в [отдельный файл](https://github.com/alexnaidovich/runner/blob/master/lib/inquirer-questions.js). В нем будут также храниться вопросы для остальных компонент. Вид имеет примерно следующий:
+
+```javascript
+const path = require('path');
+const dir_config = path.resolve(__dirname, '..', 'config');
+const [ deps_config ] = [
+  'deps.config.json'
+].map(config => require(path.join(dir_config, config)));
+
+module.exports = {
+  config_dependencies: {
+    author_pick: [
+      {
+        type: "list",
+        message: "Pick an author",
+        name: "_author",
+        choices: deps_config.defaultAuthors.concat("input manually")
+      }
+    ],
+    author_input: [
+      {
+        type: "input",
+        message: "Input your name",
+        name: "author"
+      },
+      {
+        type: "confirm",
+        message: "Do you want your name to be saved?",
+        name: "storeName",
+        default: true
+      }
+    ],
+    /* целая куча остальных вопросов */
+  } // конец вопросов для компонента
+}
+```
 
 ## Подготовлены и импортированы необходимые хелперы.
 
