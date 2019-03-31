@@ -57,7 +57,7 @@ module.exports = {
 
 ## Подготовлены и импортированы необходимые хелперы.
 
-Файл с помощниками претерпел, пожалуй, самые серьезные изменения. В нем появились три важных для работы метода:
+Файл с помощниками `lib/helpers.js` претерпел, пожалуй, самые серьезные изменения. В нем появились три важных для работы метода:
 
   * `scanCachedDevDependencies()` - на случай, если определенный набор дев-зависимостей установленн где-нибудь на HDD/SSD (мой случай) - можно просто ссылаться на путь, где они установлены. Функция принимает на себя путь к установленным зависимостям, а возвращает промис с полем `devDependencies` для создаваемого `package.json`;
   
@@ -178,7 +178,7 @@ module.exports.npmInstall = (isDevDeps, deps = []) => {
         spinner.stop();
         reject(`Exit child process with non-zero code: ${code};\n${signal}`);
       } else {
-        //  в случае успеха - показываем сообщение об успезе и резолвимся. и тоже останавливаем спиннер :)
+        //  в случае успеха - показываем сообщение об успехе и резолвимся. и тоже останавливаем спиннер :)
         console.log(chalk.yellow(`\nnpm install finished with code ${code} and status ${signal}`));
         spinner.stop();
         resolve(true);
@@ -189,3 +189,219 @@ module.exports.npmInstall = (isDevDeps, deps = []) => {
 ```
 
 ## Выстроен костяк компонента.
+
+Проще и последовательнее всего будет объяснить комментариями в коде.
+
+> `lib/config-dependencies.js`
+
+```javascript
+//  импортируем inquirer - он будет мучить нас вопросами
+const inquirer = require('inquirer');
+
+//  импортируем наш конфиг, ...
+const CONFIG = require('../config/deps.config.json');
+
+//  ...наши хелперы, ...
+const { 
+  rewriteSettings,
+  scanCachedDevDependencies,
+  savePackageJson,
+  npmInstall
+} = require('./helpers');
+
+// ... и наши вопросы для inquirer'а.
+const {
+  author_pick,
+  author_input,
+  name_and_description,
+  is_dev_deps_cached,
+  choose_dev_deps_kit,
+  input_dev_deps,
+  choose_dev_deps_cached_path,
+  input_dev_deps_cache_path,
+  choose_deps_kit,
+  input_deps
+} = require('./inquirer-questions').config_dependencies;
+
+//  создаем пустой объект - содержимое будущего файла 'package.json'.
+//  по ходу исполнения кода будем наполнять его информацией.
+const package_json = {};
+
+/**
+ * локальный хелпер - для тех случаев, когда пользователь выбрал вариант "ввести вручную".
+ * после ввода должно быть предложение сохранить ввод для возможности выбрать его в следующий раз
+ * @param {String} choice Ответ на предыдущий вопрос
+ * @param {Array} questions Список следующих вопросов - массив из двух вопросов
+ * @param {String} configArray Параметр конфига, который подлежит перезаписи
+ * @param {String} inputKey 
+ * @param {String} confirmKey 
+ * @returns {String} Final answer
+ */
+async function ifInputManually(choice, questions, configArray, inputKey, confirmKey) {
+  //  если ответ на предыдущий вопрос - "ввести вручную"
+  if (choice === "input manually") {
+    //  функция, которая задаёт вопросы
+    const INPUT = () => inquirer.prompt(questions);
+    
+    //  ответы = это результат выполнения этой функции. 
+    //  это будет объект с двумя полями - inputKey (строка, результат ввода)
+    //  и confirmKey (булевое, сохранять ли результат ввода в конфиге)
+    const answers = await INPUT();
+    
+    //  если решено сохранять результат ввода
+    if (answers[confirmKey]) {
+      //  добваляем результат ввода в соответствующее поле импортированного конфига результат ввода
+      CONFIG[configArray].push(answers[inputKey]);
+      //  и переписываем файл конфига
+      rewriteSettings(CONFIG, 'deps');
+    }
+    //  возвращаем результат ввода
+    return answers[inputKey];
+  }
+  
+  //  а если ответ на предыдущий вопрос - не "ввести вручную" - возвращаем результат предыдущего вопроса
+  return choice;
+}
+
+//  Функция для выбора/заполнения автора
+async function defineAuthor() {
+  const PICK = () => inquirer.prompt(author_pick);
+  const { _author } = await PICK();
+  
+  //  поскольку есть вероятность ответа "ввести вручную",
+  //  возвращаем немедленное выполнение хелпера ifInputManually()
+  return ifInputManually(
+    _author,
+    author_input,
+    'defaultAuthors',
+    'author',
+    'storeName'
+  );
+}
+
+//  Функция для заполнения названия и описания проекта
+async function setNameAndDescription() {
+  const INPUT = () => inquirer.prompt(name_and_description);
+  const { name, description } = await INPUT();
+  
+  //  добавляем в объект package_json полученные ответы
+  Object.assign(package_json, { name, description });
+  
+  //  возвращаем полученные ответы (хотя это и необязательно)
+  return [ name, description ];
+}
+
+//  Функция, которая определит, установлены ли дев-зависимости где-либо локально
+async function defineIfDevDepsCached() {
+  const INPUT = () => inquirer.prompt(is_dev_deps_cached);
+  const { isDevDepsCached } = await INPUT();
+  return isDevDepsCached;
+}
+
+//  Функция, в которой указываешь, где установлены дев-зависимости.
+async function _chooseDevDepsCachedPath() {
+  const CHOOSE = () => inquirer.prompt(choose_dev_deps_cached_path);
+  const { chooseDevDepsCachePath } = await CHOOSE();
+  return await ifInputManually(
+    chooseDevDepsCachePath, 
+    input_dev_deps_cache_path,
+    'devDepsCachePaths',
+    'inputDevDepsCachePath',
+    'saveDevDepsCachePath'
+  );
+}
+
+//  Функция, в которой выбираешь, какой комплект дев-зависимостей устанавливать (или ввести)
+async function chooseDevDepsKit() {
+  const CHOOSE = () => inquirer.prompt(choose_dev_deps_kit);
+  const { chooseDevDepsKit } = await CHOOSE();
+  return await ifInputManually(
+    chooseDevDepsKit,
+    input_dev_deps,
+    'devDepsKits',
+    'inputDevDeps',
+    'saveDevDeps'
+  );
+}
+
+//  Функция, в которой выбираешь, какой комплект прод-зависимостей устанавливать (или ввести)
+async function chooseDepsKit() {
+  const CHOOSE = () => inquirer.prompt(choose_deps_kit);
+  const { chooseDepsKit } = await CHOOSE();
+  return await ifInputManually(
+    chooseDepsKit,
+    input_deps,
+    'depsKits',
+    "inputDeps",
+    "saveDepsKit"
+  );
+}
+
+//  Костяк главной функции, который экспортируется в точку входа
+//  Для мягкого сглаживания ошибок оборачиваем всё её тело в блок try-catch
+module.exports = async function main() {
+  try {    
+    // 1. Определяем автора и сохраняем его в переменной package_json
+    const author = await defineAuthor();
+    Object.assign(package_json, { author });
+    
+    // 2. Даём проекту имя и описание
+    await setNameAndDescription();
+
+    //   2.1. ...а также версию и баш-скрипты для webpack'а
+    let { version, scripts } = CONFIG.examplePackageJson;
+    Object.assign(package_json, { version, scripts });
+    
+    // 3. Работаем с дев-зависимостями
+    //   3.1. Определяем, установлены ли они где-нибудь на компе
+    let isDevDepsCached = await defineIfDevDepsCached();
+    
+    //     3.1.1. Если да, указываем путь к ним, и формируем объект devDependencies для package_json
+    if (isDevDepsCached) {
+      let cachePath = await _chooseDevDepsCachedPath();
+      let devDeps = await scanCachedDevDependencies(cachePath);
+      
+      //  присваиваем поле devDependencies в переменную package_json
+      Object.assign(package_json, {devDependencies: devDeps});
+      
+      //  сохраняем файл package.json в текущей рабочей директории
+      await savePackageJson(package_json);
+      
+      //  и там же выполняем npm install
+      await npmInstall(true);
+    } else {
+      //   3.2. В противном случае - выбираем/вводим дев-зависимости
+      let _devDepsKit = await chooseDevDepsKit();
+      let devDepsKit = _devDepsKit.split(' ');
+
+      //  Если выбор не пуст - выполняем 'npm install'
+      if (devDepsKit.length > 0) {
+        await npmInstall(false, devDepsKit);
+      } else {
+        console.log(`No dev dependencies installed. You may want to install them manually.`);
+      }
+    }
+
+    // 4. выбираем/вводим прод-зависимости
+    //   все так же, как и с предыдущим пунктом
+    let _depsKit = await chooseDepsKit();
+    let depsKit = _depsKit !== '' ? _depsKit.split(' ') : new Array(0);
+
+    if (depsKit.length > 0) {
+      await npmInstall(false, depsKit);
+    } else {
+      console.log(`No prod dependencies installed. You may want to install them manually.`);
+    }
+
+    //  возвращаем сообщение об успешной установке зависимостей в точку входа
+    return 'Dependencies Configured Successfully.';
+  } catch (error) {
+    //  или сообщение об ошибке, если что-то пошло не так.
+    return `Failed to configure dependencies: \n${error}`;
+  }
+}
+```
+
+На этом работу надо компонентом `config-dependencies.js` можно считать завершенной.
+
+Спасибо за внимание.
