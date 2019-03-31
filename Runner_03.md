@@ -250,7 +250,7 @@ async function ifInputManually(choice, questions, configArray, inputKey, confirm
     
     //  если решено сохранять результат ввода
     if (answers[confirmKey]) {
-      //  добваляем результат ввода в соответствующее поле импортированного конфига результат ввода
+      //  добваляем результат ввода в соответствующее поле импортированного конфига
       CONFIG[configArray].push(answers[inputKey]);
       //  и переписываем файл конфига
       rewriteSettings(CONFIG, 'deps');
